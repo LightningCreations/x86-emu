@@ -1,3 +1,4 @@
+#![feature(iter_advance_by)]
 use std::io::{Read, Seek};
 
 pub mod elf;
@@ -9,7 +10,7 @@ pub trait MemoryMap {}
 
 pub trait FileLoader {
     fn can_load(&self, file: &mut dyn ReadSeek) -> bool;
-    fn load(&self, file: &mut dyn Read) -> Box<dyn MemoryMap>;
+    fn load(&self, file: &mut dyn ReadSeek) -> Box<dyn MemoryMap>;
 }
 
 const LOADERS: [&dyn FileLoader; 1] = [&elf::ElfFileLoader {}];
