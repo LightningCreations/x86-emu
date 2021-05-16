@@ -94,7 +94,7 @@ impl ElfFile {
             file.read_u32::<LittleEndian>().unwrap()
         } else {
             file.read_u32::<BigEndian>().unwrap()
-        };        
+        };
         ElfFile {
             bits: if format == 1 { 32 } else { 64 },
             abi,
