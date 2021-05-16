@@ -1,0 +1,10 @@
+[package]
+name = "x86_emu"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+file_loader = { path = "../file_loader" }
+processor = { path = "../processor" }

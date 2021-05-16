@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "file_loader",
+    "processor",
+    "syscall",
+    "x86_emu",
+]
