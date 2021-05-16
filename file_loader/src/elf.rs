@@ -57,12 +57,10 @@ impl ElfFile {
             } else {
                 file.read_u32::<BigEndian>().unwrap() as u64
             }
+        } else if little_endian {
+            file.read_u64::<LittleEndian>().unwrap()
         } else {
-            if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
-            } else {
-                file.read_u64::<BigEndian>().unwrap()
-            }
+            file.read_u64::<BigEndian>().unwrap()
         };
         let _phoff: u64 = if format == 1 {
             if little_endian {
@@ -70,12 +68,10 @@ impl ElfFile {
             } else {
                 file.read_u32::<BigEndian>().unwrap() as u64
             }
+        } else if little_endian {
+            file.read_u64::<LittleEndian>().unwrap()
         } else {
-            if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
-            } else {
-                file.read_u64::<BigEndian>().unwrap()
-            }
+            file.read_u64::<BigEndian>().unwrap()
         };
         let _shoff: u64 = if format == 1 {
             if little_endian {
@@ -83,12 +79,10 @@ impl ElfFile {
             } else {
                 file.read_u32::<BigEndian>().unwrap() as u64
             }
+        } else if little_endian {
+            file.read_u64::<LittleEndian>().unwrap()
         } else {
-            if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
-            } else {
-                file.read_u64::<BigEndian>().unwrap()
-            }
+            file.read_u64::<BigEndian>().unwrap()
         };
         let flags = if little_endian {
             file.read_u32::<LittleEndian>().unwrap()
