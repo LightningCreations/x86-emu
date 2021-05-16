@@ -2,29 +2,32 @@ use crate::{FileLoader, MemoryMap, ReadSeek};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io::SeekFrom;
 
-pub struct ElfFileLoader {}
+struct ElfPrgHead {}
 
-pub struct ElfMemoryMap {}
+struct ElfSectHead {}
 
-impl FileLoader for ElfFileLoader {
-    fn can_load(&self, file: &mut dyn ReadSeek) -> bool {
-        let mut buf = vec![0u8; 7];
-        if file.read_exact(&mut buf).is_err() {
-            return false;
-        }
-        file.seek(SeekFrom::Start(0)).unwrap();
-        matches!(&*buf, &[0x7F, b'E', b'L', b'F', _, _, 1])
-    }
+struct ElfFile {
+    pub bits: u8,
+    pub abi: u8,
+    pub abiver: u8,
+    pub bin_type: u16,
+    pub isa: u16,
+    pub entry: u64,
+    pub flags: u32,
+    pub prghead: Vec<ElfPrgHead>,
+    pub secthead: Vec<ElfSectHead>,
+}
 
-    fn load(&self, file: &mut dyn ReadSeek) -> Box<dyn MemoryMap> {
+impl ElfFile {
+    pub fn load(file: &mut dyn ReadSeek) -> ElfFile {
         file.seek(SeekFrom::Current(4)).unwrap(); // Must be valid in order for us to be here
         let format = file.read_u8().unwrap(); // 1 = 32, 2 = 64
         file.seek(SeekFrom::Current(1)).unwrap(); // Again, must be valid in order for us to be here
         let little_endian = file.read_u8().unwrap() == 1;
-        let _kernel = file.read_u8().unwrap();
-        let _abiver = file.read_u8().unwrap();
+        let abi = file.read_u8().unwrap();
+        let abiver = file.read_u8().unwrap();
         file.seek(SeekFrom::Current(7)).unwrap(); // 0-filled
-        let _type = if little_endian {
+        let bin_type = if little_endian {
             file.read_u16::<LittleEndian>().unwrap()
         } else {
             file.read_u16::<BigEndian>().unwrap()
@@ -48,7 +51,80 @@ impl FileLoader for ElfFileLoader {
         if version != 1 {
             panic!("incorrect ELF version");
         }
+        let entry: u64 = if format == 1 {
+            if little_endian {
+                file.read_u32::<LittleEndian>().unwrap() as u64
+            } else {
+                file.read_u32::<BigEndian>().unwrap() as u64
+            }
+        } else {
+            if little_endian {
+                file.read_u64::<LittleEndian>().unwrap()
+            } else {
+                file.read_u64::<BigEndian>().unwrap()
+            }
+        };
+        let _phoff: u64 = if format == 1 {
+            if little_endian {
+                file.read_u32::<LittleEndian>().unwrap() as u64
+            } else {
+                file.read_u32::<BigEndian>().unwrap() as u64
+            }
+        } else {
+            if little_endian {
+                file.read_u64::<LittleEndian>().unwrap()
+            } else {
+                file.read_u64::<BigEndian>().unwrap()
+            }
+        };
+        let _shoff: u64 = if format == 1 {
+            if little_endian {
+                file.read_u32::<LittleEndian>().unwrap() as u64
+            } else {
+                file.read_u32::<BigEndian>().unwrap() as u64
+            }
+        } else {
+            if little_endian {
+                file.read_u64::<LittleEndian>().unwrap()
+            } else {
+                file.read_u64::<BigEndian>().unwrap()
+            }
+        };
+        let flags = if little_endian {
+            file.read_u32::<LittleEndian>().unwrap()
+        } else {
+            file.read_u32::<BigEndian>().unwrap()
+        };        
+        ElfFile {
+            bits: if format == 1 { 32 } else { 64 },
+            abi,
+            abiver,
+            bin_type,
+            isa,
+            entry,
+            flags,
+            prghead: Vec::new(),
+            secthead: Vec::new(),
+        }
+    }
+}
 
+pub struct ElfFileLoader {}
+
+pub struct ElfMemoryMap {}
+
+impl FileLoader for ElfFileLoader {
+    fn can_load(&self, file: &mut dyn ReadSeek) -> bool {
+        let mut buf = vec![0u8; 7];
+        if file.read_exact(&mut buf).is_err() {
+            return false;
+        }
+        file.seek(SeekFrom::Start(0)).unwrap();
+        matches!(&*buf, &[0x7F, b'E', b'L', b'F', _, _, 1])
+    }
+
+    fn load(&self, file: &mut dyn ReadSeek) -> Box<dyn MemoryMap> {
+        let _elffile = ElfFile::load(file);
         Box::new(ElfMemoryMap {})
     }
 }
