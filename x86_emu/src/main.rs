@@ -1,6 +1,6 @@
+use file_loader::LoadableFile;
 use std::env;
 use std::fs::File;
-use file_loader::LoadableFile;
 
 fn main() -> std::io::Result<()> {
     let args: Vec<String> = env::args().collect();
