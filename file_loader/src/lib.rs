@@ -9,6 +9,7 @@ impl<T: Read + Seek + ?Sized> ReadSeek for T {}
 pub trait MemoryMap {
     fn bits(&self) -> u8;
     fn entry_point(&self) -> u64;
+    fn read_u8(&self, addr: u64) -> u8;
 }
 
 pub trait FileLoader {

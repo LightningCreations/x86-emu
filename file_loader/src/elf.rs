@@ -236,6 +236,7 @@ impl ElfFile {
 
 pub struct ElfMemoryMap {
     entry_point: u64,
+    prghead: Vec<ElfPrgHead>,
     bits: u8,
 }
 
@@ -246,6 +247,15 @@ impl MemoryMap for ElfMemoryMap {
 
     fn entry_point(&self) -> u64 {
         self.entry_point
+    }
+
+    fn read_u8(&self, addr: u64) -> u8 {
+        for ph in &self.prghead {
+            if ph.vaddr <= addr && (ph.vaddr + ph.memsz) > addr {
+                return *ph.data.get((addr - ph.vaddr) as usize).unwrap_or(&0);
+            }
+        }
+        panic!("Segmentation fault")
     }
 }
 
@@ -265,6 +275,7 @@ impl FileLoader for ElfFileLoader {
         let elffile = ElfFile::load(file);
         Box::new(ElfMemoryMap {
             entry_point: elffile.entry,
+            prghead: elffile.prghead,
             bits: elffile.bits,
         })
     }
