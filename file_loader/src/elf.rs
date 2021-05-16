@@ -234,9 +234,22 @@ impl ElfFile {
     }
 }
 
-pub struct ElfFileLoader {}
+pub struct ElfMemoryMap {
+    entry_point: u64,
+    bits: u8,
+}
 
-pub struct ElfMemoryMap {}
+impl MemoryMap for ElfMemoryMap {
+    fn bits(&self) -> u8 {
+        self.bits
+    }
+
+    fn entry_point(&self) -> u64 {
+        self.entry_point
+    }
+}
+
+pub struct ElfFileLoader {}
 
 impl FileLoader for ElfFileLoader {
     fn can_load(&self, file: &mut dyn ReadSeek) -> bool {
@@ -249,9 +262,10 @@ impl FileLoader for ElfFileLoader {
     }
 
     fn load(&self, file: &mut dyn ReadSeek) -> Box<dyn MemoryMap> {
-        let _elffile = ElfFile::load(file);
-        Box::new(ElfMemoryMap {})
+        let elffile = ElfFile::load(file);
+        Box::new(ElfMemoryMap {
+            entry_point: elffile.entry,
+            bits: elffile.bits,
+        })
     }
 }
-
-impl MemoryMap for ElfMemoryMap {}

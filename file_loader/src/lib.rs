@@ -6,7 +6,10 @@ pub mod elf;
 pub trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek + ?Sized> ReadSeek for T {}
 
-pub trait MemoryMap {}
+pub trait MemoryMap {
+    fn bits(&self) -> u8;
+    fn entry_point(&self) -> u64;
+}
 
 pub trait FileLoader {
     fn can_load(&self, file: &mut dyn ReadSeek) -> bool;
@@ -16,11 +19,11 @@ pub trait FileLoader {
 const LOADERS: [&dyn FileLoader; 1] = [&elf::ElfFileLoader {}];
 
 pub trait LoadableFile: ReadSeek {
-    fn get_loader(&mut self) -> Option<&'static dyn FileLoader>;
+    fn loader(&mut self) -> Option<&'static dyn FileLoader>;
 }
 
 impl<F: ReadSeek> LoadableFile for F {
-    fn get_loader(&mut self) -> Option<&'static dyn FileLoader> {
+    fn loader(&mut self) -> Option<&'static dyn FileLoader> {
         for loader in LOADERS {
             if loader.can_load(self) {
                 return Some(loader);
