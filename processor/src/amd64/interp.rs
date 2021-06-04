@@ -2,11 +2,18 @@ use crate::ProcessorImplementation;
 use bitflags::bitflags;
 use file_loader::MemoryMap;
 
-pub struct Amd64Interp {}
+use bytemuck::Zeroable;
+use file_loader::Registers;
+
+pub struct Amd64Interp {
+    regs: Registers,
+}
 
 impl Amd64Interp {
     pub fn new() -> Amd64Interp {
-        Amd64Interp {}
+        Amd64Interp {
+            regs: Registers::zeroed(),
+        }
     }
 }
 
@@ -18,8 +25,8 @@ bitflags! {
 }
 
 impl ProcessorImplementation for Amd64Interp {
-    fn init(&mut self, _: &mut dyn MemoryMap) {
-        // No initialization needed for the interpreter
+    fn init(&mut self, mm: &mut dyn MemoryMap) {
+        self.regs.rip = mm.entry_point();
     }
     fn running(&self) -> bool {
         true
@@ -29,15 +36,15 @@ impl ProcessorImplementation for Amd64Interp {
         let mut done = false;
         while !done {
             let increment_ip = true;
-            let instr = map.read_u8(map.registers().rip);
+            let instr = map.read_u8(self.regs.rip);
             match instr {
                 0x0F => {
-                    map.registers_mut().rip += 1;
-                    let instr2 = map.read_u8(map.registers().rip);
+                    self.regs.rip += 1;
+                    let instr2 = map.read_u8(self.regs.rip);
                     match instr2 {
                         0x1E => {
-                            map.registers_mut().rip += 1;
-                            let _ = map.read_u8(map.registers().rip); // ModR/M
+                            self.regs.rip += 1;
+                            let _ = map.read_u8(self.regs.rip); // ModR/M
                             done = true // It's either a NOP or an ENDBR64, neither of which we care about
                         }
                         _ => panic!("Unrecognized instruction 0x0F{:02X}", instr2),
@@ -47,7 +54,7 @@ impl ProcessorImplementation for Amd64Interp {
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
             if increment_ip {
-                map.registers_mut().rip += 1;
+                self.regs.rip += 1;
             }
         }
     }

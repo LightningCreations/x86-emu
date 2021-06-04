@@ -68,8 +68,7 @@ pub trait MemoryMap {
         let x = [self.read_xmmword(addr), self.read_xmmword(addr + 8)];
         bytemuck::cast(x)
     }
-    fn registers(&self) -> &Registers;
-    fn registers_mut(&mut self) -> &mut Registers;
+    fn entry_point(&self) -> u64;
 }
 
 pub trait FileLoader {

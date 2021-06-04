@@ -7,4 +7,4 @@ edition = "2018"
 
 [dependencies]
 byteorder = "1.4.3"
-bytemuck = {version="1.5.1",features=["derive"]}
+bytemuck = {git="https://github.com/chorman0773/bytemuck",features=["derive","min_const_generics"]}

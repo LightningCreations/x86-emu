@@ -26,7 +26,7 @@ struct ElfFile {
     pub flags: u32,
     pub prghead: Vec<ElfPrgHead>,
     pub secthead: Vec<ElfSectHead>,
-    pub regs: Registers,
+    pub e_entry: u64,
 }
 
 impl ElfFile {
@@ -221,12 +221,6 @@ impl ElfFile {
                 data,
             });
         }
-
-        let regs = Registers {
-            rip: entry,
-            ..Registers::zeroed()
-        };
-
         ElfFile {
             bits: if format == 1 { 32 } else { 64 },
             abi,
@@ -236,19 +230,17 @@ impl ElfFile {
             flags,
             prghead,
             secthead: Vec::new(),
-            regs,
+            e_entry: entry,
         }
     }
 }
 
 use std::borrow::Cow;
 
-use std::convert::TryInto;
-
 pub fn prefix_zeroed<const N: usize>(slice: &[u8]) -> Cow<[u8; N]> {
     slice
         .get(..N)
-        .map(|s| s.try_into().unwrap())
+        .map(|s| &bytemuck::cast_slice(s)[0])
         .map(Cow::Borrowed)
         .unwrap_or_else(|| {
             let mut x = [0u8; { N }];
@@ -260,7 +252,7 @@ pub fn prefix_zeroed<const N: usize>(slice: &[u8]) -> Cow<[u8; N]> {
 pub struct ElfMemoryMap {
     prghead: Vec<ElfPrgHead>,
     bits: u8,
-    regs: Registers,
+    e_entry: u64,
 }
 
 impl MemoryMap for ElfMemoryMap {
@@ -332,12 +324,8 @@ impl MemoryMap for ElfMemoryMap {
         panic!("Segmentation fault")
     }
 
-    fn registers(&self) -> &Registers {
-        &self.regs
-    }
-
-    fn registers_mut(&mut self) -> &mut Registers {
-        &mut self.regs
+    fn entry_point(&self) -> u64 {
+        self.e_entry
     }
 }
 
@@ -358,7 +346,7 @@ impl FileLoader for ElfFileLoader {
         Box::new(ElfMemoryMap {
             prghead: elffile.prghead,
             bits: elffile.bits,
-            regs: elffile.regs,
+            e_entry: elffile.e_entry,
         })
     }
 }
