@@ -238,7 +238,7 @@ impl ElfFile {
             flags,
             prghead,
             secthead: Vec::new(),
-            regs
+            regs,
         }
     }
 }
@@ -263,7 +263,11 @@ impl MemoryMap for ElfMemoryMap {
         panic!("Segmentation fault")
     }
 
-    fn registers(&mut self) -> &mut Registers {
+    fn registers(&self) -> &Registers {
+        &self.regs
+    }
+
+    fn registers_mut(&mut self) -> &mut Registers {
         &mut self.regs
     }
 }
