@@ -3,13 +3,22 @@ use std::io::{Read, Seek};
 
 pub mod elf;
 
+pub struct Regs64 {
+    pub r: [u64; 16], // r0-r15 (including rax, etc)
+    pub rip: u64, // Instruction pointer
+}
+
+pub struct Registers {
+    pub regs64: Option<Regs64>,
+}
+
 pub trait ReadSeek: Read + Seek {}
 impl<T: Read + Seek + ?Sized> ReadSeek for T {}
 
 pub trait MemoryMap {
     fn bits(&self) -> u8;
-    fn entry_point(&self) -> u64;
     fn read_u8(&self, addr: u64) -> u8;
+    fn registers(&mut self) -> &mut Registers;
 }
 
 pub trait FileLoader {

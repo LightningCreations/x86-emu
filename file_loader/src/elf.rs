@@ -1,4 +1,4 @@
-use crate::{FileLoader, MemoryMap, ReadSeek};
+use crate::{FileLoader, MemoryMap, ReadSeek, Registers, Regs64};
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io::SeekFrom;
 use std::vec::Vec;
@@ -21,10 +21,10 @@ struct ElfFile {
     pub abiver: u8,
     pub bin_type: u16,
     pub isa: u16,
-    pub entry: u64,
     pub flags: u32,
     pub prghead: Vec<ElfPrgHead>,
     pub secthead: Vec<ElfSectHead>,
+    pub regs: Registers,
 }
 
 impl ElfFile {
@@ -220,33 +220,38 @@ impl ElfFile {
             });
         }
 
+        let regs64 = Regs64 {
+            r: [0; 16],
+            rip: entry,
+        };
+
+        let regs = Registers {
+            regs64: Some(regs64),
+        };
+
         ElfFile {
             bits: if format == 1 { 32 } else { 64 },
             abi,
             abiver,
             bin_type,
             isa,
-            entry,
             flags,
             prghead,
             secthead: Vec::new(),
+            regs
         }
     }
 }
 
 pub struct ElfMemoryMap {
-    entry_point: u64,
     prghead: Vec<ElfPrgHead>,
     bits: u8,
+    regs: Registers,
 }
 
 impl MemoryMap for ElfMemoryMap {
     fn bits(&self) -> u8 {
         self.bits
-    }
-
-    fn entry_point(&self) -> u64 {
-        self.entry_point
     }
 
     fn read_u8(&self, addr: u64) -> u8 {
@@ -256,6 +261,10 @@ impl MemoryMap for ElfMemoryMap {
             }
         }
         panic!("Segmentation fault")
+    }
+
+    fn registers(&mut self) -> &mut Registers {
+        &mut self.regs
     }
 }
 
@@ -274,9 +283,9 @@ impl FileLoader for ElfFileLoader {
     fn load(&self, file: &mut dyn ReadSeek) -> Box<dyn MemoryMap> {
         let elffile = ElfFile::load(file);
         Box::new(ElfMemoryMap {
-            entry_point: elffile.entry,
             prghead: elffile.prghead,
             bits: elffile.bits,
+            regs: elffile.regs,
         })
     }
 }
