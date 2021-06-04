@@ -17,6 +17,12 @@ impl Amd64Interp {
     }
 }
 
+impl Default for Amd64Interp {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 bitflags! {
     struct Prefixes: u64 {
         const NONE = 0b0000;
@@ -25,8 +31,8 @@ bitflags! {
 }
 
 impl ProcessorImplementation for Amd64Interp {
-    fn init(&mut self, mm: &mut dyn MemoryMap) {
-        self.regs.rip = mm.entry_point();
+    fn init(&mut self, map: &mut dyn MemoryMap) {
+        self.regs.rip = map.entry_point();
     }
     fn running(&self) -> bool {
         true

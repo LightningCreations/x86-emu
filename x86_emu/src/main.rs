@@ -10,6 +10,7 @@ fn main() -> std::io::Result<()> {
     let loader = file.loader().unwrap();
     let mut memory_map = loader.load(&mut file);
     let mut processor = memory_map.processor_impl().unwrap();
+    processor.init(&mut *memory_map);
     while processor.running() {
         processor.tick(&mut *memory_map);
     }

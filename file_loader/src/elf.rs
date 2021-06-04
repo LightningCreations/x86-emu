@@ -1,6 +1,5 @@
-use crate::{FileLoader, MemoryMap, ReadSeek, Registers};
+use crate::{FileLoader, MemoryMap, ReadSeek};
 use crate::{XMMWord, YMMWord};
-use bytemuck::Zeroable;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io::SeekFrom;
 use std::vec::Vec;
@@ -244,7 +243,7 @@ pub fn prefix_zeroed<const N: usize>(slice: &[u8]) -> Cow<[u8; N]> {
         .map(Cow::Borrowed)
         .unwrap_or_else(|| {
             let mut x = [0u8; { N }];
-            &mut x[..slice.len()].copy_from_slice(slice);
+            x[..slice.len()].copy_from_slice(slice);
             Cow::Owned(x)
         })
 }
