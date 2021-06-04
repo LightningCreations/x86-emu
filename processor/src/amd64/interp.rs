@@ -28,18 +28,16 @@ impl ProcessorImplementation for Amd64Interp {
         let mut prefixes = Prefixes::NONE;
         let mut done = false;
         while !done {
-            let regs = map.registers();
             let increment_ip = true;
-            let instr = map.read_u8(regs.rip);
+            let instr = map.read_u8(map.registers().rip);
             match instr {
                 0x0F => {
                     map.registers_mut().rip += 1;
-                    let regs = map.registers();
-                    let instr2 = map.read_u8(regs.rip);
+                    let instr2 = map.read_u8(map.registers().rip);
                     match instr2 {
                         0x1E => {
-                            let _ = map.read_u8(regs.rip+1); // ModR/M
                             map.registers_mut().rip += 1;
+                            let _ = map.read_u8(map.registers().rip); // ModR/M
                             done = true // It's either a NOP or an ENDBR64, neither of which we care about
                         }
                         _ => panic!("Unrecognized instruction 0x0F{:02X}", instr2),
