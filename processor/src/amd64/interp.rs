@@ -50,6 +50,9 @@ impl ProcessorImplementation for Amd64Interp {
                         _ => panic!("Unrecognized instruction 0x0F{:02X}", instr2),
                     }
                 }
+                0x31 => {
+                    panic!("ModR/M is confusing")
+                }
                 0xF3 => prefixes |= Prefixes::REP,
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
