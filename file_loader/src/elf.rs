@@ -1,4 +1,5 @@
 use crate::{FileLoader, MemoryMap, ReadSeek, Registers};
+use crate::{XMMWord, YMMWord};
 use bytemuck::Zeroable;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io::SeekFrom;
@@ -240,6 +241,22 @@ impl ElfFile {
     }
 }
 
+use std::borrow::Cow;
+
+use std::convert::TryInto;
+
+pub fn prefix_zeroed<const N: usize>(slice: &[u8]) -> Cow<[u8; N]> {
+    slice
+        .get(..N)
+        .map(|s| s.try_into().unwrap())
+        .map(Cow::Borrowed)
+        .unwrap_or_else(|| {
+            let mut x = [0u8; { N }];
+            &mut x[..slice.len()].copy_from_slice(slice);
+            Cow::Owned(x)
+        })
+}
+
 pub struct ElfMemoryMap {
     prghead: Vec<ElfPrgHead>,
     bits: u8,
@@ -255,6 +272,61 @@ impl MemoryMap for ElfMemoryMap {
         for ph in &self.prghead {
             if ph.vaddr <= addr && (ph.vaddr + ph.memsz) > addr {
                 return *ph.data.get((addr - ph.vaddr) as usize).unwrap_or(&0);
+            }
+        }
+        panic!("Segmentation fault")
+    }
+
+    fn read_u16(&self, addr: u64) -> u16 {
+        for ph in &self.prghead {
+            if ph.vaddr <= addr && (ph.vaddr + ph.memsz) > (addr + 1) {
+                return bytemuck::cast(*prefix_zeroed::<2>(
+                    ph.data.get(((addr - ph.vaddr) as usize)..).unwrap_or(&[]),
+                ));
+            }
+        }
+        panic!("Segmentation fault")
+    }
+
+    fn read_u32(&self, addr: u64) -> u32 {
+        for ph in &self.prghead {
+            if ph.vaddr <= addr && (ph.vaddr + ph.memsz) > (addr + 1) {
+                return bytemuck::cast(*prefix_zeroed::<4>(
+                    ph.data.get(((addr - ph.vaddr) as usize)..).unwrap_or(&[]),
+                ));
+            }
+        }
+        panic!("Segmentation fault")
+    }
+
+    fn read_u64(&self, addr: u64) -> u64 {
+        for ph in &self.prghead {
+            if ph.vaddr <= addr && (ph.vaddr + ph.memsz) > (addr + 1) {
+                return bytemuck::cast(*prefix_zeroed::<8>(
+                    ph.data.get(((addr - ph.vaddr) as usize)..).unwrap_or(&[]),
+                ));
+            }
+        }
+        panic!("Segmentation fault")
+    }
+
+    fn read_xmmword(&self, addr: u64) -> XMMWord {
+        for ph in &self.prghead {
+            if ph.vaddr <= addr && (ph.vaddr + ph.memsz) > (addr + 1) {
+                return bytemuck::cast(*prefix_zeroed::<16>(
+                    ph.data.get(((addr - ph.vaddr) as usize)..).unwrap_or(&[]),
+                ));
+            }
+        }
+        panic!("Segmentation fault")
+    }
+
+    fn read_ymmword(&self, addr: u64) -> YMMWord {
+        for ph in &self.prghead {
+            if ph.vaddr <= addr && (ph.vaddr + ph.memsz) > (addr + 1) {
+                return bytemuck::cast(*prefix_zeroed::<32>(
+                    ph.data.get(((addr - ph.vaddr) as usize)..).unwrap_or(&[]),
+                ));
             }
         }
         panic!("Segmentation fault")
