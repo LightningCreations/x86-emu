@@ -1,4 +1,5 @@
-use crate::{FileLoader, MemoryMap, ReadSeek, Registers, Regs64};
+use crate::{FileLoader, MemoryMap, ReadSeek, Registers};
+use bytemuck::Zeroable;
 use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use std::io::SeekFrom;
 use std::vec::Vec;
@@ -220,13 +221,9 @@ impl ElfFile {
             });
         }
 
-        let regs64 = Regs64 {
-            r: [0; 16],
-            rip: entry,
-        };
-
         let regs = Registers {
-            regs64: Some(regs64),
+            rip: entry,
+            ..Registers::zeroed()
         };
 
         ElfFile {

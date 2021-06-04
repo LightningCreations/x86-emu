@@ -1,5 +1,5 @@
-use bitflags::bitflags;
 use crate::ProcessorImplementation;
+use bitflags::bitflags;
 use file_loader::MemoryMap;
 
 pub struct Amd64Interp {}
@@ -25,10 +25,10 @@ impl ProcessorImplementation for Amd64Interp {
         true
     }
     fn tick(&mut self, map: &mut dyn MemoryMap) {
-        let regs = map.registers().regs64.as_ref().unwrap();
         let mut prefixes = Prefixes::NONE;
         let done = false;
         while !done {
+            let regs = map.registers();
             let increment_ip = true;
             let instr = map.read_u8(regs.rip);
             match instr {
@@ -36,7 +36,7 @@ impl ProcessorImplementation for Amd64Interp {
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
             if increment_ip {
-                map.registers_mut().regs64.as_ref().unwrap().rip += 1;
+                map.registers_mut().rip += 1;
             }
         }
     }
