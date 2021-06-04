@@ -7,3 +7,4 @@ edition = "2018"
 
 [dependencies]
 file_loader = { path = "../file_loader" }
+bitflags = "1.2.1" # Used in amd64::interp
