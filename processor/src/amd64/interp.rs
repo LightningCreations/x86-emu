@@ -36,7 +36,7 @@ impl ProcessorImplementation for Amd64Interp {
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
             if increment_ip {
-                map.registers_mut().regs64.unwrap().rip += 1;
+                map.registers_mut().regs64.as_ref().unwrap().rip += 1;
             }
         }
     }
