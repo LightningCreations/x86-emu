@@ -5,6 +5,14 @@ use file_loader::MemoryMap;
 use bytemuck::Zeroable;
 use file_loader::Registers;
 
+#[derive(PartialEq)]
+pub enum OperandSize {
+    R8,
+    R16,
+    R32,
+    R64,
+}
+
 pub struct Amd64Interp {
     regs: Registers,
 }
@@ -14,6 +22,25 @@ impl Amd64Interp {
         Amd64Interp {
             regs: Registers::zeroed(),
         }
+    }
+
+    pub fn modrm<T> (&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T) where T: Fn(&mut u64, u64, OperandSize) {
+        let modrm_byte = map.read_u8(self.regs.rip);
+        let dst = match modrm_byte & 0xC0 {
+            0xC0 => {
+                let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
+                if size == OperandSize::R32 {
+                    *result = *result & 0x00000000FFFFFFFF; // Zero out higher half
+                }
+                result
+            }
+            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte)
+        };
+        let mut src = self.regs.gprs[((modrm_byte >> 3) & 0x07) as usize];
+        if size == OperandSize::R32 {
+            src = src & 0x00000000FFFFFFFF;
+        }
+        function(dst, src, size);
     }
 }
 
@@ -41,29 +68,26 @@ impl ProcessorImplementation for Amd64Interp {
         let mut prefixes = Prefixes::NONE;
         let mut done = false;
         while !done {
-            let increment_ip = true;
             let instr = map.read_u8(self.regs.rip);
+            self.regs.rip += 1;
             match instr {
                 0x0F => {
-                    self.regs.rip += 1;
                     let instr2 = map.read_u8(self.regs.rip);
+                    self.regs.rip += 1;
                     match instr2 {
                         0x1E => {
-                            self.regs.rip += 1;
                             let _ = map.read_u8(self.regs.rip); // ModR/M
+                            self.regs.rip += 1;
                             done = true // It's either a NOP or an ENDBR64, neither of which we care about
                         }
                         _ => panic!("Unrecognized instruction 0x0F{:02X}", instr2),
                     }
                 }
-                0x31 => {
-                    panic!("ModR/M is confusing")
+                0x31 => { // XOR r/m16/32/64 r16/32/64
+                    self.modrm(map, OperandSize::R32, |a, b, _| *a = *a ^ b);
                 }
-                0xF3 => prefixes |= Prefixes::REP,
+                0xF3 => prefixes |= Prefixes::REP, // REP / REPZ
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
-            }
-            if increment_ip {
-                self.regs.rip += 1;
             }
         }
     }
