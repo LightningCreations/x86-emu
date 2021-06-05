@@ -24,9 +24,13 @@ impl Amd64Interp {
         }
     }
 
-    pub fn modrm<T> (&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T) where T: Fn(&mut u64, u64, OperandSize) {
+    pub fn modrm<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T)
+    where
+        T: Fn(&mut u64, u64, OperandSize),
+    {
         let modrm_byte = map.read_u8(self.regs.rip);
         self.regs.rip += 1;
+        let mut src = self.regs.gprs[((modrm_byte >> 3) & 0x07) as usize];
         let dst = match modrm_byte & 0xC0 {
             0xC0 => {
                 let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
@@ -35,9 +39,9 @@ impl Amd64Interp {
                 }
                 result
             }
-            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte)
+            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
         };
-        let mut src = self.regs.gprs[((modrm_byte >> 3) & 0x07) as usize];
+
         if size == OperandSize::R32 {
             src = src & 0x00000000FFFFFFFF;
         }
@@ -85,7 +89,8 @@ impl ProcessorImplementation for Amd64Interp {
                         _ => panic!("Unrecognized instruction 0x0F{:02X}", instr2),
                     }
                 }
-                0x31 => { // XOR r/m16/32/64 r16/32/64
+                0x31 => {
+                    // XOR r/m16/32/64 r16/32/64
                     self.modrm(map, OperandSize::R32, |a, b, _| *a = *a ^ b);
                 }
                 0x66 => prefixes |= Prefixes::OPSIZE,
