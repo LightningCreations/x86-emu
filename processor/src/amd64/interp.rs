@@ -26,6 +26,7 @@ impl Amd64Interp {
 
     pub fn modrm<T> (&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T) where T: Fn(&mut u64, u64, OperandSize) {
         let modrm_byte = map.read_u8(self.regs.rip);
+        map.regs.rip++;
         let dst = match modrm_byte & 0xC0 {
             0xC0 => {
                 let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
