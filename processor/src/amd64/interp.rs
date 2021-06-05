@@ -55,6 +55,7 @@ bitflags! {
     struct Prefixes: u64 {
         const NONE = 0b0000;
         const REP = 0b0001;
+        const OPSIZE = 0b0010;
     }
 }
 
@@ -87,6 +88,7 @@ impl ProcessorImplementation for Amd64Interp {
                 0x31 => { // XOR r/m16/32/64 r16/32/64
                     self.modrm(map, OperandSize::R32, |a, b, _| *a = *a ^ b);
                 }
+                0x66 => prefixes |= Prefixes::OPSIZE,
                 0xF3 => prefixes |= Prefixes::REP, // REP / REPZ
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
