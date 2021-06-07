@@ -34,15 +34,18 @@ impl Amd64Interp {
             self.regs.gprs[(((modrm_byte >> 3) & 0x07) + if rex_r { 8 } else { 0 }) as usize];
         let saved;
         let dst = match modrm_byte & 0xC0 {
-            0x00 => {saved = match modrm_byte & 7 {
-                4 => panic!("SIB not implemented!"),
-                5 => {
-                    let offset = map.read_u32(self.regs.rip) as i64 as u64;
-                    self.regs.rip += 4;
-                    self.regs.rip + offset
-                }
-                _ => self.regs.gprs[(modrm_byte & 7) as usize],
-            }; map.read_u32(saved) as u64},
+            0x00 => {
+                saved = match modrm_byte & 7 {
+                    4 => panic!("SIB not implemented!"),
+                    5 => {
+                        let offset = map.read_u32(self.regs.rip) as i64 as u64;
+                        self.regs.rip += 4;
+                        self.regs.rip + offset
+                    }
+                    _ => self.regs.gprs[(modrm_byte & 7) as usize],
+                };
+                map.read_u32(saved) as u64
+            }
             0xC0 => {
                 saved = (modrm_byte & 0x7) as u64;
                 let result = &mut self.regs.gprs[saved as usize];
@@ -59,10 +62,7 @@ impl Amd64Interp {
         }
         let result = function(dst, src, size);
         match modrm_byte & 0xC0 {
-            0x00 => map.write_u32(
-                saved,
-                result as u32,
-            ),
+            0x00 => map.write_u32(saved, result as u32),
             0xC0 => self.regs.gprs[saved as usize] = result,
             _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
         }
@@ -77,15 +77,18 @@ impl Amd64Interp {
         let determ = ((modrm_byte >> 3) & 0x07) as u8;
         let saved;
         let dst = match modrm_byte & 0xC0 {
-            0x00 => {saved = match modrm_byte & 7 {
-                4 => panic!("SIB not implemented!"),
-                5 => {
-                    let offset = map.read_u32(self.regs.rip) as i64 as u64;
-                    self.regs.rip += 4;
-                    self.regs.rip + offset
-                }
-                _ => self.regs.gprs[(modrm_byte & 7) as usize],
-            }; map.read_u32(saved) as u64},
+            0x00 => {
+                saved = match modrm_byte & 7 {
+                    4 => panic!("SIB not implemented!"),
+                    5 => {
+                        let offset = map.read_u32(self.regs.rip) as i64 as u64;
+                        self.regs.rip += 4;
+                        self.regs.rip + offset
+                    }
+                    _ => self.regs.gprs[(modrm_byte & 7) as usize],
+                };
+                map.read_u32(saved) as u64
+            }
             0xC0 => {
                 saved = (modrm_byte & 0x7) as u64;
                 let result = &mut self.regs.gprs[saved as usize];
@@ -98,10 +101,7 @@ impl Amd64Interp {
         };
         let result = function(dst, determ, size);
         match modrm_byte & 0xC0 {
-            0x00 => map.write_u32(
-                saved,
-                result as u32,
-            ),
+            0x00 => map.write_u32(saved, result as u32),
             0xC0 => self.regs.gprs[saved as usize] = result,
             _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
         }
