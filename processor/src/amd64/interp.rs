@@ -26,19 +26,28 @@ impl Amd64Interp {
 
     pub fn modrm<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, rex_r: bool, function: T)
     where
-        T: Fn(&mut u64, u64, OperandSize),
+        T: Fn(u64, u64, OperandSize) -> u64,
     {
         let modrm_byte = map.read_u8(self.regs.rip);
         self.regs.rip += 1;
         let mut src =
             self.regs.gprs[(((modrm_byte >> 3) & 0x07) + if rex_r { 8 } else { 0 }) as usize];
         let dst = match modrm_byte & 0xC0 {
+            0x00 => map.read_u64(match modrm_byte & 7 {
+                4 => panic!("SIB not implemented!"),
+                5 => {
+                    let offset = map.read_u32(self.regs.rip) as i64 as u64;
+                    self.regs.rip += 4;
+                    self.regs.rip + offset
+                }
+                _ => self.regs.gprs[(modrm_byte & 7) as usize],
+            }),
             0xC0 => {
                 let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
                 if size == OperandSize::R32 {
                     *result &= 0x00000000FFFFFFFF; // Zero out higher half
                 }
-                result
+                *result
             }
             _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
         };
@@ -46,12 +55,73 @@ impl Amd64Interp {
         if size == OperandSize::R32 {
             src &= 0x00000000FFFFFFFF;
         }
-        function(dst, src, size);
+        let result = function(dst, src, size);
+        match modrm_byte & 0xC0 {
+            0x00 => map.write_u64(
+                match modrm_byte & 7 {
+                    4 => panic!("SIB not implemented!"),
+                    5 => {
+                        let offset = map.read_u32(self.regs.rip) as i64 as u64;
+                        self.regs.rip += 4;
+                        self.regs.rip + offset
+                    }
+                    _ => self.regs.gprs[(modrm_byte & 7) as usize],
+                },
+                result,
+            ),
+            0xC0 => self.regs.gprs[(modrm_byte & 0x7) as usize] = result,
+            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
+        }
+    }
+
+    pub fn modrmdet<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T)
+    where
+        T: Fn(u64, u8, OperandSize) -> u64,
+    {
+        let modrm_byte = map.read_u8(self.regs.rip);
+        self.regs.rip += 1;
+        let determ = ((modrm_byte >> 3) & 0x07) as u8;
+        let dst = match modrm_byte & 0xC0 {
+            0x00 => map.read_u64(match modrm_byte & 7 {
+                4 => panic!("SIB not implemented!"),
+                5 => {
+                    let offset = map.read_u32(self.regs.rip) as i64 as u64;
+                    self.regs.rip += 4;
+                    self.regs.rip + offset
+                }
+                _ => self.regs.gprs[(modrm_byte & 7) as usize],
+            }),
+            0xC0 => {
+                let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
+                if size == OperandSize::R32 {
+                    *result &= 0x00000000FFFFFFFF; // Zero out higher half
+                }
+                *result
+            }
+            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
+        };
+        let result = function(dst, determ, size);
+        match modrm_byte & 0xC0 {
+            0x00 => map.write_u64(
+                match modrm_byte & 7 {
+                    4 => panic!("SIB not implemented!"),
+                    5 => {
+                        let offset = map.read_u32(self.regs.rip) as i64 as u64;
+                        self.regs.rip += 4;
+                        self.regs.rip + offset
+                    }
+                    _ => self.regs.gprs[(modrm_byte & 7) as usize],
+                },
+                result,
+            ),
+            0xC0 => self.regs.gprs[(modrm_byte & 0x7) as usize] = result,
+            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
+        }
     }
 
     pub fn modrmimm<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T)
     where
-        T: Fn(&mut u64, u8, i8, OperandSize),
+        T: Fn(u64, u8, i8, OperandSize) -> u64,
     {
         let modrm_byte = map.read_u8(self.regs.rip);
         self.regs.rip += 1;
@@ -62,13 +132,17 @@ impl Amd64Interp {
                 if size == OperandSize::R32 {
                     *result &= 0x00000000FFFFFFFF; // Zero out higher half
                 }
-                result
+                *result
             }
             _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
         };
         let imm = map.read_u8(self.regs.rip) as i8;
         self.regs.rip += 1;
-        function(dst, determ, imm, size);
+        let result = function(dst, determ, imm, size);
+        match modrm_byte & 0xC0 {
+            0xC0 => self.regs.gprs[(modrm_byte & 0x7) as usize] = result,
+            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
+        }
     }
 
     pub fn modrmlea(&mut self, map: &mut dyn MemoryMap, size: OperandSize, rex_r: bool) {
@@ -156,7 +230,7 @@ impl ProcessorImplementation for Amd64Interp {
                             OperandSize::R64
                         },
                         prefixes.contains(Prefixes::REX_R),
-                        |a, b, _| *a ^= b,
+                        |a, b, _| a ^ b,
                     );
                 }
                 0x40 => prefixes |= Prefixes::REX,
@@ -217,14 +291,14 @@ impl ProcessorImplementation for Amd64Interp {
                             OperandSize::R64
                         },
                         |a, determ, b, _| match determ {
-                            0 => *a += b as u64,
-                            1 => *a |= b as u64,
-                            2 => *a += b as u64,
-                            3 => *a -= b as u64,
-                            4 => *a &= b as u64,
-                            5 => *a -= b as u64,
-                            6 => *a ^= b as u64,
-                            7 => {}
+                            0 => a + b as u64,
+                            1 => a | b as u64,
+                            2 => a + b as u64,
+                            3 => a - b as u64,
+                            4 => a & b as u64,
+                            5 => a - b as u64,
+                            6 => a ^ b as u64,
+                            7 => a,
                             _ => unreachable!("determ should be between 0 and 7 inclusive"),
                         },
                     );
@@ -239,7 +313,7 @@ impl ProcessorImplementation for Amd64Interp {
                             OperandSize::R64
                         },
                         prefixes.contains(Prefixes::REX_R),
-                        |a, b, _| *a = b,
+                        |_, b, _| b,
                     );
                 }
                 0x8D => self.modrmlea(
@@ -252,6 +326,26 @@ impl ProcessorImplementation for Amd64Interp {
                     prefixes.contains(Prefixes::REX_R),
                 ),
                 0xF3 => prefixes |= Prefixes::REP, // REP / REPZ
+                0xFF => self.modrmdet(
+                    map,
+                    if prefixes.contains(Prefixes::REX_W) {
+                        OperandSize::R32
+                    } else {
+                        OperandSize::R64
+                    },
+                    |a, determ, _| match determ {
+                        0 => a + 1,
+                        1 => a - 1,
+                        2 => {
+                            self.regs.gprs[4] -= 8;
+                            map.write_u64(self.regs.gprs[4] /* rsp */, self.regs.rip);
+                            self.regs.rip = a;
+                            a
+                        }
+                        x if x <= 7 => panic!("AAAA FF /{}", x),
+                        _ => unreachable!("determ should be between 0 and 7 inclusive"),
+                    },
+                ),
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
         }
