@@ -35,7 +35,7 @@ impl Amd64Interp {
             0xC0 => {
                 let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
                 if size == OperandSize::R32 {
-                    *result = *result & 0x00000000FFFFFFFF; // Zero out higher half
+                    *result &= 0x00000000FFFFFFFF; // Zero out higher half
                 }
                 result
             }
@@ -43,7 +43,7 @@ impl Amd64Interp {
         };
 
         if size == OperandSize::R32 {
-            src = src & 0x00000000FFFFFFFF;
+            src &= 0x00000000FFFFFFFF;
         }
         function(dst, src, size);
     }
@@ -57,9 +57,14 @@ impl Default for Amd64Interp {
 
 bitflags! {
     struct Prefixes: u64 {
-        const NONE = 0b0000;
-        const REP = 0b0001;
-        const OPSIZE = 0b0010;
+        const NONE = 0b00000000;
+        const REP = 0b00000001;
+        const OPSIZE = 0b00000010;
+        const REX = 0b00000100;
+        const REX_B = 0b00001000;
+        const REX_X = 0b00010000;
+        const REX_R = 0b00100000;
+        const REX_W = 0b01000000;
     }
 }
 
@@ -90,10 +95,60 @@ impl ProcessorImplementation for Amd64Interp {
                     }
                 }
                 0x31 => {
-                    // XOR r/m16/32/64 r16/32/64
-                    self.modrm(map, OperandSize::R32, |a, b, _| *a = *a ^ b);
+                    // XOR r/m16/32/64, r16/32/64
+                    self.modrm(
+                        map,
+                        if prefixes.contains(Prefixes::REX_W) {
+                            OperandSize::R32
+                        } else {
+                            OperandSize::R64
+                        },
+                        |a, b, _| *a ^= b,
+                    );
+                }
+                0x40 => prefixes |= Prefixes::REX,
+                0x41 => prefixes |= Prefixes::REX | Prefixes::REX_B,
+                0x42 => prefixes |= Prefixes::REX | Prefixes::REX_X,
+                0x43 => prefixes |= Prefixes::REX | Prefixes::REX_X | Prefixes::REX_B,
+                0x44 => prefixes |= Prefixes::REX | Prefixes::REX_R,
+                0x45 => prefixes |= Prefixes::REX | Prefixes::REX_R | Prefixes::REX_B,
+                0x46 => prefixes |= Prefixes::REX | Prefixes::REX_R | Prefixes::REX_X,
+                0x47 => {
+                    prefixes |= Prefixes::REX | Prefixes::REX_R | Prefixes::REX_X | Prefixes::REX_B
+                }
+                0x48 => prefixes |= Prefixes::REX | Prefixes::REX_W,
+                0x49 => prefixes |= Prefixes::REX | Prefixes::REX_W | Prefixes::REX_B,
+                0x4A => prefixes |= Prefixes::REX | Prefixes::REX_W | Prefixes::REX_X,
+                0x4B => {
+                    prefixes |= Prefixes::REX | Prefixes::REX_W | Prefixes::REX_X | Prefixes::REX_B
+                }
+                0x4C => prefixes |= Prefixes::REX | Prefixes::REX_W | Prefixes::REX_R,
+                0x4D => {
+                    prefixes |= Prefixes::REX | Prefixes::REX_W | Prefixes::REX_R | Prefixes::REX_B
+                }
+                0x4E => {
+                    prefixes |= Prefixes::REX | Prefixes::REX_W | Prefixes::REX_R | Prefixes::REX_X
+                }
+                0x4F => {
+                    prefixes |= Prefixes::REX
+                        | Prefixes::REX_W
+                        | Prefixes::REX_R
+                        | Prefixes::REX_X
+                        | Prefixes::REX_B
                 }
                 0x66 => prefixes |= Prefixes::OPSIZE,
+                0x89 => {
+                    // MOV r/m16/32/64, r16/32/64
+                    self.modrm(
+                        map,
+                        if prefixes.contains(Prefixes::REX_W) {
+                            OperandSize::R32
+                        } else {
+                            OperandSize::R64
+                        },
+                        |a, b, _| *a = b,
+                    );
+                }
                 0xF3 => prefixes |= Prefixes::REP, // REP / REPZ
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
