@@ -84,7 +84,7 @@ impl Amd64Interp {
                     self.regs.rip + offset
                 }
                 _ => self.regs.gprs[(modrm_byte & 7) as usize],
-            }
+            },
             0xC0 => panic!("Can't LEA a register!"),
             _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
         };
