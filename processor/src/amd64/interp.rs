@@ -74,15 +74,15 @@ impl Amd64Interp {
         }
     }
 
-    pub fn modrmdet<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T)
+    pub fn modrmdet<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, mut function: T)
     where
-        T: Fn(u64, u8, OperandSize) -> u64,
+        T: FnMut(u64, u8, OperandSize) -> u64,
     {
         let modrm_byte = map.read_u8(self.regs.rip);
         self.regs.rip += 1;
         let determ = ((modrm_byte >> 3) & 0x07) as u8;
         let dst = match modrm_byte & 0xC0 {
-            0x00 => map.read_u64(match modrm_byte & 7 {
+            0x00 => map.read_u32(match modrm_byte & 7 {
                 4 => panic!("SIB not implemented!"),
                 5 => {
                     let offset = map.read_u32(self.regs.rip) as i64 as u64;
@@ -90,7 +90,7 @@ impl Amd64Interp {
                     self.regs.rip + offset
                 }
                 _ => self.regs.gprs[(modrm_byte & 7) as usize],
-            }),
+            }) as u64,
             0xC0 => {
                 let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
                 if size == OperandSize::R32 {
@@ -102,7 +102,7 @@ impl Amd64Interp {
         };
         let result = function(dst, determ, size);
         match modrm_byte & 0xC0 {
-            0x00 => map.write_u64(
+            0x00 => map.write_u32(
                 match modrm_byte & 7 {
                     4 => panic!("SIB not implemented!"),
                     5 => {
@@ -112,7 +112,7 @@ impl Amd64Interp {
                     }
                     _ => self.regs.gprs[(modrm_byte & 7) as usize],
                 },
-                result,
+                result as u32,
             ),
             0xC0 => self.regs.gprs[(modrm_byte & 0x7) as usize] = result,
             _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
@@ -326,26 +326,38 @@ impl ProcessorImplementation for Amd64Interp {
                     prefixes.contains(Prefixes::REX_R),
                 ),
                 0xF3 => prefixes |= Prefixes::REP, // REP / REPZ
-                0xFF => self.modrmdet(
-                    map,
-                    if prefixes.contains(Prefixes::REX_W) {
-                        OperandSize::R32
-                    } else {
-                        OperandSize::R64
-                    },
-                    |a, determ, _| match determ {
-                        0 => a + 1,
-                        1 => a - 1,
+                0xFF => {
+                    let mut addr_real = 0;
+                    let mut det_real = 0;
+                    self.modrmdet(
+                        map,
+                        if prefixes.contains(Prefixes::REX_W) {
+                            OperandSize::R32
+                        } else {
+                            OperandSize::R64
+                        },
+                        |a, determ, _| match determ {
+                            0 => a + 1,
+                            1 => a - 1,
+                            x if x <= 7 => {
+                                addr_real = a;
+                                det_real = determ;
+                                a
+                            }
+                            _ => unreachable!("determ should be between 0 and 7 inclusive"),
+                        },
+                    );
+                    match det_real {
+                        0 | 1 => {} // Already handled
                         2 => {
                             self.regs.gprs[4] -= 8;
                             map.write_u64(self.regs.gprs[4] /* rsp */, self.regs.rip);
-                            self.regs.rip = a;
-                            a
+                            self.regs.rip = addr_real;
                         }
-                        x if x <= 7 => panic!("AAAA FF /{}", x),
+                        x if x <= 7 => panic!("AAAA FF "),
                         _ => unreachable!("determ should be between 0 and 7 inclusive"),
-                    },
-                ),
+                    }
+                }
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
         }

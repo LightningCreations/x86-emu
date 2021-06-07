@@ -340,7 +340,7 @@ impl MemoryMap for ElfMemoryMap {
                 return;
             }
         }
-        panic!("Segmentation fault")
+        panic!("Segmentation fault writing to address {:#018X}", addr)
     }
 
     fn entry_point(&self) -> u64 {
