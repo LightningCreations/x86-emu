@@ -346,7 +346,7 @@ impl ProcessorImplementation for Amd64Interp {
                         _ => unreachable!("determ should be between 0 and 7 inclusive"),
                     }
                 }
-                _ => panic!("Unrecognized instruction {:#04X}", instr),
+                _ => panic!("Unrecognized instruction {:#04X} at address {:#016X}", instr, self.regs.rip),
             }
         }
     }
