@@ -24,13 +24,14 @@ impl Amd64Interp {
         }
     }
 
-    pub fn modrm<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T)
+    pub fn modrm<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, rex_r: bool, function: T)
     where
         T: Fn(&mut u64, u64, OperandSize),
     {
         let modrm_byte = map.read_u8(self.regs.rip);
         self.regs.rip += 1;
-        let mut src = self.regs.gprs[((modrm_byte >> 3) & 0x07) as usize];
+        let mut src =
+            self.regs.gprs[(((modrm_byte >> 3) & 0x07) + if rex_r { 8 } else { 0 }) as usize];
         let dst = match modrm_byte & 0xC0 {
             0xC0 => {
                 let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
@@ -68,6 +69,34 @@ impl Amd64Interp {
         let imm = map.read_u8(self.regs.rip) as i8;
         self.regs.rip += 1;
         function(dst, determ, imm, size);
+    }
+
+    pub fn modrmlea(&mut self, map: &mut dyn MemoryMap, size: OperandSize, rex_r: bool) {
+        let modrm_byte = map.read_u8(self.regs.rip);
+        self.regs.rip += 1;
+
+        let result = match modrm_byte & 0xC0 {
+            0x00 => match modrm_byte & 7 {
+                4 => panic!("SIB not implemented!"),
+                5 => {
+                    let offset = map.read_u32(self.regs.rip) as i64 as u64;
+                    self.regs.rip += 4;
+                    self.regs.rip + offset
+                }
+                _ => self.regs.gprs[(modrm_byte & 7) as usize],
+            }
+            0xC0 => panic!("Can't LEA a register!"),
+            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
+        };
+
+        let dst =
+            &mut self.regs.gprs[(((modrm_byte >> 3) & 0x07) + if rex_r { 8 } else { 0 }) as usize];
+
+        *dst = result;
+
+        if size == OperandSize::R32 {
+            *dst &= 0x00000000FFFFFFFF;
+        }
     }
 }
 
@@ -126,6 +155,7 @@ impl ProcessorImplementation for Amd64Interp {
                         } else {
                             OperandSize::R64
                         },
+                        prefixes.contains(Prefixes::REX_R),
                         |a, b, _| *a ^= b,
                     );
                 }
@@ -161,11 +191,17 @@ impl ProcessorImplementation for Amd64Interp {
                 }
                 0x50 => {
                     self.regs.gprs[4] -= 8;
-                    map.write_u64(self.regs.gprs[4] /* rsp */, self.regs.gprs[0] /* rax */);
+                    map.write_u64(
+                        self.regs.gprs[4], /* rsp */
+                        self.regs.gprs[0], /* rax */
+                    );
                 }
                 0x54 => {
                     self.regs.gprs[4] -= 8;
-                    map.write_u64(self.regs.gprs[4] /* rsp */, self.regs.gprs[4] /* rsp */);
+                    map.write_u64(
+                        self.regs.gprs[4], /* rsp */
+                        self.regs.gprs[4], /* rsp */
+                    );
                 }
                 0x5E => {
                     self.regs.gprs[6] /* rsi */ = map.read_u64(self.regs.gprs[4] /* rsp */);
@@ -202,9 +238,19 @@ impl ProcessorImplementation for Amd64Interp {
                         } else {
                             OperandSize::R64
                         },
+                        prefixes.contains(Prefixes::REX_R),
                         |a, b, _| *a = b,
                     );
                 }
+                0x8D => self.modrmlea(
+                    map,
+                    if prefixes.contains(Prefixes::REX_W) {
+                        OperandSize::R32
+                    } else {
+                        OperandSize::R64
+                    },
+                    prefixes.contains(Prefixes::REX_R),
+                ),
                 0xF3 => prefixes |= Prefixes::REP, // REP / REPZ
                 _ => panic!("Unrecognized instruction {:#04X}", instr),
             }
