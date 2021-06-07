@@ -220,6 +220,16 @@ impl ElfFile {
                 data,
             });
         }
+        let ram = vec![0; 0x10000]; // 64K of RAM. All ya need, right?
+        prghead.push(ElfPrgHead {
+            ph_type: 0xFFFFFFFF, // psuedo-type
+            flags: 3,            // RW
+            vaddr: 0x7FFF0000,
+            paddr: 0, // paddr is unused on x86
+            memsz: 0x10000,
+            align: 1, // Don't care
+            data: ram,
+        });
         ElfFile {
             bits: if format == 1 { 32 } else { 64 },
             abi,
@@ -325,6 +335,10 @@ impl MemoryMap for ElfMemoryMap {
 
     fn entry_point(&self) -> u64 {
         self.e_entry
+    }
+
+    fn starting_stack(&self) -> u64 {
+        0x7FFFFFF8 // Works for both 32-bit and 64-bit
     }
 }
 

@@ -47,6 +47,28 @@ impl Amd64Interp {
         }
         function(dst, src, size);
     }
+
+    pub fn modrmimm<T>(&mut self, map: &mut dyn MemoryMap, size: OperandSize, function: T)
+    where
+        T: Fn(&mut u64, u8, i8, OperandSize),
+    {
+        let modrm_byte = map.read_u8(self.regs.rip);
+        self.regs.rip += 1;
+        let determ = ((modrm_byte >> 3) & 0x07) as u8;
+        let dst = match modrm_byte & 0xC0 {
+            0xC0 => {
+                let result = &mut self.regs.gprs[(modrm_byte & 0x7) as usize];
+                if size == OperandSize::R32 {
+                    *result &= 0x00000000FFFFFFFF; // Zero out higher half
+                }
+                result
+            }
+            _ => panic!("Unrecognized ModR/M dst in {:#04X}", modrm_byte),
+        };
+        let imm = map.read_u8(self.regs.rip) as i8;
+        self.regs.rip += 1;
+        function(dst, determ, imm, size);
+    }
 }
 
 impl Default for Amd64Interp {
@@ -136,7 +158,32 @@ impl ProcessorImplementation for Amd64Interp {
                         | Prefixes::REX_X
                         | Prefixes::REX_B
                 }
+                0x5E => {
+                    self.regs.gprs[6] /* rsi */ = map.read_u64(self.regs.gprs[4] /* rsp */);
+                    self.regs.gprs[4] += 8;
+                }
                 0x66 => prefixes |= Prefixes::OPSIZE,
+                0x83 => {
+                    self.modrmimm(
+                        map,
+                        if prefixes.contains(Prefixes::REX_W) {
+                            OperandSize::R32
+                        } else {
+                            OperandSize::R64
+                        },
+                        |a, determ, b, _| match determ {
+                            0 => *a += b as u64,
+                            1 => *a |= b as u64,
+                            2 => *a += b as u64,
+                            3 => *a -= b as u64,
+                            4 => *a &= b as u64,
+                            5 => *a -= b as u64,
+                            6 => *a ^= b as u64,
+                            7 => {}
+                            _ => unreachable!("determ should be between 0 and 7 inclusive"),
+                        },
+                    );
+                }
                 0x89 => {
                     // MOV r/m16/32/64, r16/32/64
                     self.modrm(

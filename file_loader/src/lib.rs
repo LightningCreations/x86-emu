@@ -69,6 +69,7 @@ pub trait MemoryMap {
         bytemuck::cast(x)
     }
     fn entry_point(&self) -> u64;
+    fn starting_stack(&self) -> u64;
 }
 
 pub trait FileLoader {
