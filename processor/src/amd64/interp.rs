@@ -93,6 +93,7 @@ bitflags! {
 impl ProcessorImplementation for Amd64Interp {
     fn init(&mut self, map: &mut dyn MemoryMap) {
         self.regs.rip = map.entry_point();
+        self.regs.gprs[4] = map.starting_stack();
     }
     fn running(&self) -> bool {
         true
@@ -157,6 +158,14 @@ impl ProcessorImplementation for Amd64Interp {
                         | Prefixes::REX_R
                         | Prefixes::REX_X
                         | Prefixes::REX_B
+                }
+                0x50 => {
+                    self.regs.gprs[4] -= 8;
+                    map.write_u64(self.regs.gprs[4] /* rsp */, self.regs.gprs[0] /* rax */);
+                }
+                0x54 => {
+                    self.regs.gprs[4] -= 8;
+                    map.write_u64(self.regs.gprs[4] /* rsp */, self.regs.gprs[4] /* rsp */);
                 }
                 0x5E => {
                     self.regs.gprs[6] /* rsi */ = map.read_u64(self.regs.gprs[4] /* rsp */);

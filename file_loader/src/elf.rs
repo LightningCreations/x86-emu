@@ -333,6 +333,16 @@ impl MemoryMap for ElfMemoryMap {
         panic!("Segmentation fault")
     }
 
+    fn write_u8(&mut self, addr: u64, data: u8) {
+        for ph in &mut self.prghead {
+            if ph.vaddr <= addr && (ph.vaddr + ph.memsz) > addr {
+                ph.data[(addr - ph.vaddr) as usize] = data;
+                return;
+            }
+        }
+        panic!("Segmentation fault")
+    }
+
     fn entry_point(&self) -> u64 {
         self.e_entry
     }

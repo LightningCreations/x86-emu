@@ -68,6 +68,19 @@ pub trait MemoryMap {
         let x = [self.read_xmmword(addr), self.read_xmmword(addr + 8)];
         bytemuck::cast(x)
     }
+    fn write_u8(&mut self, addr: u64, data: u8);
+    fn write_u16(&mut self, addr: u64, data: u16) {
+        self.write_u8(addr, (data & 0xFF) as u8);
+        self.write_u8(addr + 1, ((data >> 8) & 0xFF) as u8);
+    }
+    fn write_u32(&mut self, addr: u64, data: u32) {
+        self.write_u16(addr, (data & 0xFFFF) as u16);
+        self.write_u16(addr + 2, ((data >> 16) & 0xFFFF) as u16);
+    }
+    fn write_u64(&mut self, addr: u64, data: u64) {
+        self.write_u32(addr, (data & 0xFFFFFFFF) as u32);
+        self.write_u32(addr + 4, ((data >> 32) & 0xFFFFFFFF) as u32);
+    }
     fn entry_point(&self) -> u64;
     fn starting_stack(&self) -> u64;
 }
