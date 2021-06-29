@@ -1,6 +1,6 @@
 use crate::{FileLoader, MemoryMap, ReadSeek};
 use crate::{XMMWord, YMMWord};
-use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt};
 use std::io::SeekFrom;
 use std::vec::Vec;
 
@@ -34,175 +34,84 @@ impl ElfFile {
         let format = file.read_u8().unwrap(); // 1 = 32, 2 = 64
         file.seek(SeekFrom::Current(1)).unwrap(); // Again, must be valid in order for us to be here
         let little_endian = file.read_u8().unwrap() == 1;
+        if !little_endian {
+            panic!("x86 is little-endian, this ain't");
+        }
         let abi = file.read_u8().unwrap();
         let abiver = file.read_u8().unwrap();
         file.seek(SeekFrom::Current(7)).unwrap(); // 0-filled
-        let bin_type = if little_endian {
-            file.read_u16::<LittleEndian>().unwrap()
-        } else {
-            file.read_u16::<BigEndian>().unwrap()
-        };
-        let isa = if little_endian {
-            file.read_u16::<LittleEndian>().unwrap()
-        } else {
-            file.read_u16::<BigEndian>().unwrap()
-        };
+        let bin_type = file.read_u16::<LittleEndian>().unwrap();
+        let isa = file.read_u16::<LittleEndian>().unwrap();
         if (isa == 0x3 && format != 1) || (isa == 0x3E && format != 2) {
             panic!("ELF e_format and e_machine disagree");
         }
         if isa != 0x3 && isa != 0x3E {
             panic!("not an x86(_64) executable")
         }
-        let version = if little_endian {
-            file.read_u32::<LittleEndian>().unwrap()
-        } else {
-            file.read_u32::<BigEndian>().unwrap()
-        };
+        let version = file.read_u32::<LittleEndian>().unwrap();
         if version != 1 {
             panic!("incorrect ELF version");
         }
         let entry: u64 = if format == 1 {
-            if little_endian {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u32::<BigEndian>().unwrap() as u64
-            }
-        } else if little_endian {
-            file.read_u64::<LittleEndian>().unwrap()
+            file.read_u32::<LittleEndian>().unwrap() as u64
         } else {
-            file.read_u64::<BigEndian>().unwrap()
+            file.read_u64::<LittleEndian>().unwrap()
         };
         let phoff: u64 = if format == 1 {
-            if little_endian {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u32::<BigEndian>().unwrap() as u64
-            }
-        } else if little_endian {
-            file.read_u64::<LittleEndian>().unwrap()
+            file.read_u32::<LittleEndian>().unwrap() as u64
         } else {
-            file.read_u64::<BigEndian>().unwrap()
+            file.read_u64::<LittleEndian>().unwrap()
         };
         let _shoff: u64 = if format == 1 {
-            if little_endian {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u32::<BigEndian>().unwrap() as u64
-            }
-        } else if little_endian {
+            file.read_u32::<LittleEndian>().unwrap() as u64
+        } else {
             file.read_u64::<LittleEndian>().unwrap()
-        } else {
-            file.read_u64::<BigEndian>().unwrap()
         };
-        let flags = if little_endian {
-            file.read_u32::<LittleEndian>().unwrap()
-        } else {
-            file.read_u32::<BigEndian>().unwrap()
-        };
-        let _ehsize = if little_endian {
-            file.read_u16::<LittleEndian>().unwrap()
-        } else {
-            file.read_u16::<BigEndian>().unwrap()
-        };
-        let _phentsize = if little_endian {
-            file.read_u16::<LittleEndian>().unwrap()
-        } else {
-            file.read_u16::<BigEndian>().unwrap()
-        };
-        let phnum = if little_endian {
-            file.read_u16::<LittleEndian>().unwrap()
-        } else {
-            file.read_u16::<BigEndian>().unwrap()
-        };
-
+        let flags = file.read_u32::<LittleEndian>().unwrap();
+        let _ehsize = file.read_u16::<LittleEndian>().unwrap();
+        let _phentsize = file.read_u16::<LittleEndian>().unwrap();
+        let phnum = file.read_u16::<LittleEndian>().unwrap();
         let mut next_off = phoff;
         let mut prghead = Vec::new();
         for _ in 0..phnum {
             file.seek(SeekFrom::Start(next_off)).unwrap();
-            let ph_type = if little_endian {
-                file.read_u32::<LittleEndian>().unwrap()
-            } else {
-                file.read_u32::<BigEndian>().unwrap()
-            };
-            let mut flags = if format == 1 {
-                0
-            } else if little_endian {
-                file.read_u32::<LittleEndian>().unwrap()
-            } else {
-                file.read_u32::<BigEndian>().unwrap()
-            };
+            let ph_type = file.read_u32::<LittleEndian>().unwrap();
+            let mut flags = 0; // Because... AAAA
+            if format != 1 {
+                flags = file.read_u32::<LittleEndian>().unwrap();
+            }
             let offset = if format == 1 {
-                if little_endian {
-                    file.read_u32::<LittleEndian>().unwrap() as u64
-                } else {
-                    file.read_u32::<BigEndian>().unwrap() as u64
-                }
-            } else if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
+                file.read_u32::<LittleEndian>().unwrap() as u64
             } else {
-                file.read_u64::<BigEndian>().unwrap()
+                file.read_u64::<LittleEndian>().unwrap()
             };
             let vaddr = if format == 1 {
-                if little_endian {
-                    file.read_u32::<LittleEndian>().unwrap() as u64
-                } else {
-                    file.read_u32::<BigEndian>().unwrap() as u64
-                }
-            } else if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
+                file.read_u32::<LittleEndian>().unwrap() as u64
             } else {
-                file.read_u64::<BigEndian>().unwrap()
+                file.read_u64::<LittleEndian>().unwrap()
             };
             let paddr = if format == 1 {
-                if little_endian {
-                    file.read_u32::<LittleEndian>().unwrap() as u64
-                } else {
-                    file.read_u32::<BigEndian>().unwrap() as u64
-                }
-            } else if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
+                file.read_u32::<LittleEndian>().unwrap() as u64
             } else {
-                file.read_u64::<BigEndian>().unwrap()
+                file.read_u64::<LittleEndian>().unwrap()
             };
             let filesz = if format == 1 {
-                if little_endian {
-                    file.read_u32::<LittleEndian>().unwrap() as u64
-                } else {
-                    file.read_u32::<BigEndian>().unwrap() as u64
-                }
-            } else if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
+                file.read_u32::<LittleEndian>().unwrap() as u64
             } else {
-                file.read_u64::<BigEndian>().unwrap()
+                file.read_u64::<LittleEndian>().unwrap()
             };
             let memsz = if format == 1 {
-                if little_endian {
-                    file.read_u32::<LittleEndian>().unwrap() as u64
-                } else {
-                    file.read_u32::<BigEndian>().unwrap() as u64
-                }
-            } else if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
+                file.read_u32::<LittleEndian>().unwrap() as u64
             } else {
-                file.read_u64::<BigEndian>().unwrap()
+                file.read_u64::<LittleEndian>().unwrap()
             };
             if format == 1 {
-                flags = if little_endian {
-                    file.read_u32::<LittleEndian>().unwrap()
-                } else {
-                    file.read_u32::<BigEndian>().unwrap()
-                }
+                flags = file.read_u32::<LittleEndian>().unwrap();
             }
             let align = if format == 1 {
-                if little_endian {
-                    file.read_u32::<LittleEndian>().unwrap() as u64
-                } else {
-                    file.read_u32::<BigEndian>().unwrap() as u64
-                }
-            } else if little_endian {
-                file.read_u64::<LittleEndian>().unwrap()
+                file.read_u32::<LittleEndian>().unwrap() as u64
             } else {
-                file.read_u64::<BigEndian>().unwrap()
+                file.read_u64::<LittleEndian>().unwrap()
             };
 
             next_off = file.seek(SeekFrom::Current(0)).unwrap();

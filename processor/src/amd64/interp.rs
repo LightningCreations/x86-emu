@@ -186,14 +186,17 @@ impl ProcessorImplementation for Amd64Interp {
         self.regs.rip = map.entry_point();
         self.regs.gprs[4] = map.starting_stack();
     }
+
     fn running(&self) -> bool {
         true
     }
+
     fn tick(&mut self, map: &mut dyn MemoryMap) {
         let mut prefixes = Prefixes::NONE;
         let mut done = false;
         while !done {
             let instr = map.read_u8(self.regs.rip);
+            dbg!(self.regs.rip, instr);
             self.regs.rip += 1;
             match instr {
                 0x0F => {
@@ -346,7 +349,11 @@ impl ProcessorImplementation for Amd64Interp {
                         _ => unreachable!("determ should be between 0 and 7 inclusive"),
                     }
                 }
-                _ => panic!("Unrecognized instruction {:#04X} at address {:#016X}", instr, self.regs.rip),
+                _ => panic!(
+                    "Unrecognized instruction {:#04X} at address {:#016X}",
+                    instr,
+                    self.regs.rip - 1
+                ),
             }
         }
     }
