@@ -40,6 +40,13 @@ impl ElfFile {
         let abi = file.read_u8().unwrap();
         let abiver = file.read_u8().unwrap();
         file.seek(SeekFrom::Current(7)).unwrap(); // 0-filled
+        let read_u32_u64 = |file: &mut dyn ReadSeek| {
+            if format == 1 {
+                file.read_u32::<LittleEndian>().unwrap() as u64
+            } else {
+                file.read_u64::<LittleEndian>().unwrap()
+            }
+        };
         let bin_type = file.read_u16::<LittleEndian>().unwrap();
         let isa = file.read_u16::<LittleEndian>().unwrap();
         if (isa == 0x3 && format != 1) || (isa == 0x3E && format != 2) {
@@ -52,21 +59,9 @@ impl ElfFile {
         if version != 1 {
             panic!("incorrect ELF version");
         }
-        let entry: u64 = if format == 1 {
-            file.read_u32::<LittleEndian>().unwrap() as u64
-        } else {
-            file.read_u64::<LittleEndian>().unwrap()
-        };
-        let phoff: u64 = if format == 1 {
-            file.read_u32::<LittleEndian>().unwrap() as u64
-        } else {
-            file.read_u64::<LittleEndian>().unwrap()
-        };
-        let _shoff: u64 = if format == 1 {
-            file.read_u32::<LittleEndian>().unwrap() as u64
-        } else {
-            file.read_u64::<LittleEndian>().unwrap()
-        };
+        let entry = read_u32_u64(file);
+        let phoff = read_u32_u64(file);
+        let _shoff = read_u32_u64(file);
         let flags = file.read_u32::<LittleEndian>().unwrap();
         let _ehsize = file.read_u16::<LittleEndian>().unwrap();
         let _phentsize = file.read_u16::<LittleEndian>().unwrap();
@@ -80,39 +75,15 @@ impl ElfFile {
             if format != 1 {
                 flags = file.read_u32::<LittleEndian>().unwrap();
             }
-            let offset = if format == 1 {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u64::<LittleEndian>().unwrap()
-            };
-            let vaddr = if format == 1 {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u64::<LittleEndian>().unwrap()
-            };
-            let paddr = if format == 1 {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u64::<LittleEndian>().unwrap()
-            };
-            let filesz = if format == 1 {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u64::<LittleEndian>().unwrap()
-            };
-            let memsz = if format == 1 {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u64::<LittleEndian>().unwrap()
-            };
+            let offset = read_u32_u64(file);
+            let vaddr = read_u32_u64(file);
+            let paddr = read_u32_u64(file);
+            let filesz = read_u32_u64(file);
+            let memsz = read_u32_u64(file);
             if format == 1 {
                 flags = file.read_u32::<LittleEndian>().unwrap();
             }
-            let align = if format == 1 {
-                file.read_u32::<LittleEndian>().unwrap() as u64
-            } else {
-                file.read_u64::<LittleEndian>().unwrap()
-            };
+            let align = read_u32_u64(file);
 
             next_off = file.seek(SeekFrom::Current(0)).unwrap();
             file.seek(SeekFrom::Start(offset)).unwrap();
